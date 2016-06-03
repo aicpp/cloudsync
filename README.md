@@ -17,7 +17,7 @@ _Tested on debian wheezy/Mac OS X_
 Installation
 ============
 
-1) Clone this git repo: `git clone https://github/aicpp/cloudsync` 
+1) Clone this git repo: `git clone https://github.com/aicpp/cloudsync` 
 
 2) Install Dropbox SDK (see: https://github.com/dropbox/dropbox-sdk-python)
 
