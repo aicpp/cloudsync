@@ -1,18 +1,18 @@
 Sync files to/from Dropbox folder
 =================================
 
-The script `cloudsync.py` uses Dropbox API v2 (https://github.com/dropbox/dropbox-sdk-python) to synchronize files between local and Dropbox folders
-It uses several filters of files, defined in `filters.py`
+The script `cloudsync.py` uses Dropbox API v2 (https://github.com/dropbox/dropbox-sdk-python) to synchronize files between local and Dropbox folders  
+It uses several filters of files, defined in `filters.py`  
 * `FileFilterMask` - exclude temporary files by mask. By default: `.*, ~*, thumbs.db`
-* `FileFilterDays` - match only files with modification time newer than matchDays days. By default: no filtration.
-Each file compare using name, size and modification time to prevent unnecessary synchronization.
+* `FileFilterDays` - match only files with modification time newer than matchDays days. By default: no filtration.  
+Each file compare using name, size and modification time to prevent unnecessary synchronization.  
 
 Requirements
 ============
-Dropbox account 
-Python 2.7 and above 
+Dropbox account  
+Python 2.7 and above  
 
-_Tested on debian wheezy/Mac OS X_
+_Tested on debian wheezy/Mac OS X_  
 
 Installation
 ============
@@ -27,8 +27,8 @@ Installation
 
 Usage
 =====
-Script log to console and file `/tmp/cloudsync.log` 
-Script detect if it run by cron and disable console output in that case.  
+Script log to console and file `/tmp/cloudsync.log`  
+Script detect if it run by cron and disable console output in that case.    
 
 
 Command line arguments
@@ -36,15 +36,15 @@ Command line arguments
 
 **Required params**
 
-`--token` - your dropbox token (see: https://dropbox.com/developers/apps) 
-`--dropboxdir` - dropbox directory 
-`--localdir` - local directory 
-`--direction` - direction of syncronization 
-`tolocal` - from Dropbox directory to local directory 
-`todropbox` - from local directory to Dropbox directory   
+`--token` - your dropbox token (see: https://dropbox.com/developers/apps)  
+`--dropboxdir` - dropbox directory  
+`--localdir` - local directory  
+`--direction` - direction of syncronization  
+`tolocal` - from Dropbox directory to local directory  
+`todropbox` - from local directory to Dropbox directory  
 
 **Optional params**
-`--match-days` - copy only files which modification time is newer than `--match-days` days 
+`--match-days` - copy only files which modification time is newer than `--match-days` days   
 
 Example
 -------
