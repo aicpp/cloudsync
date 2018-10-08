@@ -61,7 +61,7 @@ Copy photos created in the last 30 days from Dropbox to local directory. Local d
     --match-days 30
 ```
 
-Copy photos from local directory (for example mounted yandex.disk as davfs) to Dropbox directory.
+Copy photos from local directory (for example mounted yandex.disk as davfs) to Dropbox directory. Dropbox directory should exists.
 ```bash
 #!/bin/bash
 
