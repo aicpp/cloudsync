@@ -66,8 +66,17 @@ class DropboxSync(object):
         self.logger.debug('Dropbox account: [%s_%s] mail:%s' % (acc.country, acc.locale, acc.email))
 
     def checkDropboxDir(self):
-        # TODO: check dir exists
-        pass
+        """
+        Checks that Dropbox folder exists.
+        """
+        self.logger.debug('Checking if Dropbox folder exists...')
+        try:
+            self.dbx.files_list_folder(self.dropboxDir)
+            self.logger.debug('Dropbox folder exists')
+        except:
+            self.logger.error(f"Folder {self.dropboxDir} does not exist on Dropbox")
+            exit(-1)
+
 
     def listLocalFiles(self):
         self.logger.debug('Getting list of local files...')
@@ -102,7 +111,7 @@ class DropboxSync(object):
         while '//' in result:
             result = result.replace('//', '/')
         result = result.rstrip('/')
-        result = unicodedata.normalize('NFC', result.decode('utf-8'))
+        result = unicodedata.normalize('NFC', result)
         return result
 
     # filtration
