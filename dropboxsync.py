@@ -66,12 +66,21 @@ class DropboxSync(object):
         self.logger.debug('Dropbox account: [%s_%s] mail:%s' % (acc.country, acc.locale, acc.email))
 
     def checkDropboxDir(self):
-        # TODO: check dir exists
-        pass
+        """
+        Checks that Dropbox folder exists.
+        """
+        self.logger.debug('Checking if Dropbox folder exists...')
+        try:
+            self.dbx.files_list_folder(self.dropboxDir)
+            self.logger.debug('Dropbox folder exists')
+        except:
+            self.logger.error(f"Folder {self.dropboxDir} does not exist on Dropbox")
+            exit(-1)
+
 
     def listLocalFiles(self):
         self.logger.debug('Getting list of local files...')
-        locList = [unicodedata.normalize('NFC', f.decode('utf-8')) for f in os.listdir(self.localDir) if os.path.isfile(os.path.join(self.localDir,f))]
+        locList = [unicodedata.normalize('NFC', f) for f in os.listdir(self.localDir) if os.path.isfile(os.path.join(self.localDir,f))]
         self.locList = [self.filterItemByLocal(f) for f in locList]
         self.logger.debug('Local files:%s' % len(self.locList))
         return True
@@ -90,10 +99,17 @@ class DropboxSync(object):
             size=os.path.getsize(filePath))
 
     def filterItemByDropbox(self, fileMd):
+        the_dict = {
+            'name': fileMd.name
+        }
+
+        #Check if file has these attributes before filtering by them
+        if hasattr(fileMd, 'cliend_modified'):
+            the_dict['client_modified'] = fileMd.client_modified
+        if hasattr(fileMd, 'size'):
+            the_dict['size'] = fileMd.size
         return filters.FileFilterItem(
-            name=fileMd.name,
-            mtime=fileMd.client_modified,
-            size=fileMd.size
+            **the_dict
         )
 
     def normalizeDir(self, directory):
@@ -102,7 +118,7 @@ class DropboxSync(object):
         while '//' in result:
             result = result.replace('//', '/')
         result = result.rstrip('/')
-        result = unicodedata.normalize('NFC', result.decode('utf-8'))
+        result = unicodedata.normalize('NFC', result)
         return result
 
     # filtration
