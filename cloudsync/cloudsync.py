@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import os
-import sys, locale
+import sys
 
 import dropboxsync
 import logging

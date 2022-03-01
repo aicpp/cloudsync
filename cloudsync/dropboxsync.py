@@ -5,7 +5,7 @@ import contextlib
 
 import datetime
 import dropbox
-from dropbox.files import FileMetadata, FolderMetadata
+from dropbox.files import FileMetadata
 import os
 import time
 import filters
