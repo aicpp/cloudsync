@@ -3,6 +3,7 @@
 import logging
 import contextlib
 
+import datetime
 import dropbox
 from dropbox.files import FileMetadata
 from dropbox.exceptions import ApiError
@@ -26,13 +27,13 @@ class DropboxSync(object):
     filterItems: List[SyncFile] = []
     sourceFilesMatched: List[SyncFile] = []
     db_handler: Optional[DropboxFileHandler] = None
+    dbx: Optional[dropbox.Dropbox] = None
 
-    def __init__(self, args):
-        self.args=args
-        self.dbx = None
-        self.localDir = Path(args['localdir'])
-        self.dropboxDir = Path(args['dropboxdir'])
-        self.directionToDb = args['direction'] == 'todropbox'
+    def __init__(self, **kwargs):
+        self.args = kwargs
+        self.localDir = Path(kwargs['localdir'])
+        self.dropboxDir = Path(kwargs['dropboxdir'])
+        self.directionToDb = kwargs['direction'] == 'todropbox'
 
         self.timeoutSec = 2 * 60
         self.logger = logging.getLogger(__name__)
@@ -82,8 +83,8 @@ class DropboxSync(object):
             self.dbx.files_list_folder(str(self.dropboxDir))
             self.logger.debug('Dropbox folder exists')
         except:
-            self.logger.error(f"Folder {str(self.dropboxDir)} does not exist on Dropbox")
-            exit(-1)
+            self.logger.debug(f"Folder {str(self.dropboxDir)} does not exist on Dropbox, creating...")
+            self.dbx.files_create_folder_v2(str(self.dropboxDir))
 
     def listLocalFiles(self):
         self.logger.debug('Getting list of local files...')
@@ -233,8 +234,8 @@ class DropboxSync(object):
         with self.stopwatch('uploading'):
             try:
                 self.dbx.files_upload(
-                    data, db_path, mode,
-                    client_modified=file_item.mod_time,
+                    data, str(db_path), mode,
+                    client_modified=datetime.datetime.utcfromtimestamp(file_item.mod_time),
                     autorename=False,
                     mute=True)
             except dropbox.exceptions.ApiError as err:

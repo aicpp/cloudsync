@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import os
+from pathlib import Path
 import sys
 
 import dropboxsync
@@ -59,8 +60,32 @@ def main():
         sys.exit(2)
 
     try:
-        # 
-        dbSync = dropboxsync.DropboxSync(vars(args))
+
+        the_args = vars(args)
+        db_dir = Path(the_args['dropboxdir'])
+        local_dir = Path(the_args['localdir'])
+
+
+
+        for root, dirs, files in os.walk(the_args['localdir']):
+            local_path = Path(root)
+            db_path = db_dir / local_path.relative_to(local_dir)
+            for folder in dirs:
+                the_args['localdir'] = str(local_path / folder)
+                the_args['dropboxdir'] = str(db_path / folder)
+                dbSync = dropboxsync.DropboxSync(**the_args)
+                dbSync.setLogger(logger)
+                dbSync.prepare()
+
+                filters = FilterParameters()
+                filters.days = dbSync.args['match_days']
+                dbSync.filterSourceFiles(filters)
+
+                dbSync.synchronize()
+        the_args['localdir'] = str(local_dir)
+        the_args['dropboxdir'] = str(db_dir)
+
+        dbSync = dropboxsync.DropboxSync(**the_args)
         dbSync.setLogger(logger)
         dbSync.prepare()
 
@@ -69,6 +94,8 @@ def main():
         dbSync.filterSourceFiles(filters)
 
         dbSync.synchronize()
+
+
     except:
         logger.exception('')
 
