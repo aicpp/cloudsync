@@ -7,7 +7,8 @@ import dropboxsync
 import logging
 import logger as lgr
 import argparse
-import filters as ftr
+
+from sync_file.filters import FilterParameters
 
 
 def isCronMode():
@@ -63,9 +64,8 @@ def main():
         dbSync.setLogger(logger)
         dbSync.prepare()
 
-        filters = []
-        filters.append(ftr.FileFilterDays(matchDays=dbSync.args['match_days']))
-        filters.append(ftr.FileFilterMask())
+        filters = FilterParameters()
+        filters.days = dbSync.args['match_days']
         dbSync.filterSourceFiles(filters)
 
         dbSync.synchronize()
