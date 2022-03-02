@@ -1,7 +1,13 @@
 from abc import ABC, abstractmethod
+from enum import Enum, auto
 from pathlib import Path
 
 from ..filters import FilterParameters
+
+
+class FileType(Enum):
+    FOLDER = auto()
+    FILE = auto()
 
 
 class FileHandler(ABC):
@@ -41,6 +47,10 @@ class FileHandler(ABC):
 
     @abstractmethod
     def delete(self):
+        pass
+
+    @abstractmethod
+    def type(self):
         pass
 
     def filter(self, params: FilterParameters) -> bool:

@@ -1,7 +1,7 @@
 import hashlib
 import os
 
-from .file_handler import FileHandler
+from .file_handler import FileHandler, FileType
 
 DROPBOX_HASH_CHUNK_SIZE = 4*1024*1024
 
@@ -30,5 +30,12 @@ class LocalFileHandler(FileHandler):
 
     def size(self):
         return self.file.stat().st_size
+
+    def type(self):
+        if self.file.is_file():
+            return FileType.FILE
+        else:
+            return FileType.FOLDER
+
 
 
