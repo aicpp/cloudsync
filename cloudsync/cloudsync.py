@@ -1,13 +1,15 @@
 #!/usr/bin/python
 
 import os
-import sys, locale
+from pathlib import Path
+import sys
 
 import dropboxsync
 import logging
 import logger as lgr
 import argparse
-import filters as ftr
+
+from sync_file.filters import FilterParameters
 
 
 def isCronMode():
@@ -58,17 +60,18 @@ def main():
         sys.exit(2)
 
     try:
-        # 
-        dbSync = dropboxsync.DropboxSync(vars(args))
+
+        dbSync = dropboxsync.DropboxSync(**vars(args))
         dbSync.setLogger(logger)
         dbSync.prepare()
 
-        filters = []
-        filters.append(ftr.FileFilterDays(matchDays=dbSync.args['match_days']))
-        filters.append(ftr.FileFilterMask())
-        dbSync.filterSourceFiles(filters)
+        filters = FilterParameters()
+        filters.days = dbSync.args['match_days']
+        dbSync.apply_filter(filters)
 
         dbSync.synchronize()
+
+
     except:
         logger.exception('')
 
