@@ -32,6 +32,10 @@ class SyncFile:
     def size(self):
         return self.file_handler.size()
 
+    @property
+    def type(self):
+        return self.file_handler.type()
+
     def filter(self, params: FilterParameters) -> bool:
         return self.file_handler.filter(params)
 

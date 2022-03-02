@@ -14,7 +14,7 @@ from typing import List, Optional
 import unicodedata
 
 from sync_file import SyncFile
-from sync_file.file_handler import DropboxFileHandler, LocalFileHandler
+from sync_file.file_handler import DropboxFileHandler, FileType
 
 class DropboxSync(object):
     """
@@ -26,7 +26,6 @@ class DropboxSync(object):
     dbList: List[SyncFile] = []
     filterItems: List[SyncFile] = []
     sourceFilesMatched: List[SyncFile] = []
-    db_handler: Optional[DropboxFileHandler] = None
     dbx: Optional[dropbox.Dropbox] = None
 
     def __init__(self, **kwargs):
@@ -57,7 +56,6 @@ class DropboxSync(object):
     def prepareDropboxAuth(self):
         self.logger.debug('Connecting to dropbox using token...')
         self.dbx = dropbox.Dropbox(self.args['token'])
-        self.db_handler = DropboxFileHandler(self.dbx)
         self.logger.debug('Dropbox connected')
 
     def checkLocalDir(self):
@@ -126,7 +124,9 @@ class DropboxSync(object):
     def deleteLocalFiles(self):
         # remove local
         sourceNames = [fileItem.name for fileItem in self.sourceFilesMatched]
-        delList = [fileItem for fileItem in self.locList if fileItem.name not in sourceNames]
+        delList = [fileItem for fileItem in self.locList
+                   if fileItem.name not in sourceNames
+                   and fileItem.type == FileType.FILE]
         if not delList:
             return
         self.logger.debug(f'Local files to delete: {len(delList)}')
@@ -140,7 +140,7 @@ class DropboxSync(object):
         countFails = 0
         for fileItem in self.sourceFilesMatched:
 
-            self.db_handler.file = self.dropboxDir / fileItem.name
+            # self.db_handler.file = self.dropboxDir / fileItem.name
 
             if fileItem in self.locList:
                 self.logger.debug(f'Skip existed: {fileItem.name}')
@@ -158,7 +158,10 @@ class DropboxSync(object):
     def deleteDropboxFiles(self):
         """ Delete not matched files from Dropbox directory """
         sourceNames = [fileItem.name for fileItem in self.sourceFilesMatched]
-        delList = [fileItem for fileItem in self.dbList if fileItem.name not in sourceNames]
+        delList = [fileItem for fileItem in self.dbList
+                   if fileItem.name not in sourceNames
+                   and fileItem.type == FileType.FILE
+        ]
         if not delList:
             return
         self.logger.debug('Dropbox files to delete:%s' % len(delList))
@@ -199,7 +202,8 @@ class DropboxSync(object):
             raise Exception('Folder listing failed for %s -- assumed empty:%s' % (str(self.dropboxDir), err))
         else:
             self.logger.debug('Dropbox files:%s' % len(res.entries))
-            self.dbList = [SyncFile(self.dropboxDir / dbfile.name, file_handler=self.db_handler) for dbfile in res.entries]
+            self.dbList = [SyncFile(self.dropboxDir / dbfile.name, file_handler=DropboxFileHandler(self.dbx)) for dbfile in res.entries]
+            print(self.dbList)
 
     def downloadFile(self, file_item: SyncFile):
         """Download a file.
