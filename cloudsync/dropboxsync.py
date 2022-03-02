@@ -3,6 +3,8 @@
 import logging
 import contextlib
 
+from copy import copy
+import datetime
 import dropbox
 from dropbox.files import FileMetadata
 from dropbox.exceptions import ApiError
@@ -13,7 +15,8 @@ from typing import List, Optional
 import unicodedata
 
 from sync_file import SyncFile
-from sync_file.file_handler import DropboxFileHandler, LocalFileHandler
+from sync_file.filters import FilterParameters
+from sync_file.file_handler import DropboxFileHandler, FileType
 
 class DropboxSync(object):
     """
@@ -21,18 +24,20 @@ class DropboxSync(object):
     use Dropbox API v2 (https://github.com/dropbox/dropbox-sdk-python)
     """
 
-    locList: List[SyncFile] = []
-    dbList: List[SyncFile] = []
+    local_files: List[SyncFile] = []
+    db_files: List[SyncFile] = []
+    local_folders: List[SyncFile] = []
+    db_folders: List[SyncFile] = []
     filterItems: List[SyncFile] = []
     sourceFilesMatched: List[SyncFile] = []
-    db_handler: Optional[DropboxFileHandler] = None
+    dbx: Optional[dropbox.Dropbox] = None
+    filters: Optional[FilterParameters] = None
 
-    def __init__(self, args):
-        self.args=args
-        self.dbx = None
-        self.localDir = Path(args['localdir'])
-        self.dropboxDir = Path(args['dropboxdir'])
-        self.directionToDb = args['direction'] == 'todropbox'
+    def __init__(self, **kwargs):
+        self.args = kwargs
+        self.localDir = Path(kwargs['localdir'])
+        self.dropboxDir = Path(kwargs['dropboxdir'])
+        self.directionToDb = kwargs['direction'] == 'todropbox'
 
         self.timeoutSec = 2 * 60
         self.logger = logging.getLogger(__name__)
@@ -46,22 +51,19 @@ class DropboxSync(object):
         self.logger.info('--- Mode: %s' % self.args['direction'])
         self.prepareDropboxAuth()
         self.checkDropboxAuth()
-        self.checkDropboxDir()
-        self.checkLocalDir()
 
-        self.listDropboxFiles()
-        self.listLocalFiles()
-        self.listFilterItems()
 
     def prepareDropboxAuth(self):
         self.logger.debug('Connecting to dropbox using token...')
         self.dbx = dropbox.Dropbox(self.args['token'])
-        self.db_handler = DropboxFileHandler(self.dbx)
         self.logger.debug('Dropbox connected')
 
     def checkLocalDir(self):
         if not os.path.exists(self.localDir):
-            raise Exception('Local path is not exists:%s' % self.localDir)
+            if self.directionToDb:
+                raise Exception('Local path is not exists:%s' % self.localDir)
+            else:
+                os.mkdir(self.localDir)
         if not os.path.isdir(self.localDir):
             raise Exception('Local path is not directory:%s' % self.localDir)
 
@@ -82,37 +84,80 @@ class DropboxSync(object):
             self.dbx.files_list_folder(str(self.dropboxDir))
             self.logger.debug('Dropbox folder exists')
         except:
-            self.logger.error(f"Folder {str(self.dropboxDir)} does not exist on Dropbox")
-            exit(-1)
+            self.logger.debug(f"Folder {str(self.dropboxDir)} does not exist on Dropbox, creating...")
+            self.dbx.files_create_folder_v2(str(self.dropboxDir))
 
     def listLocalFiles(self):
         self.logger.debug('Getting list of local files...')
-        self.locList = [
-            SyncFile(self.localDir / Path(unicodedata.normalize('NFC', f)))
-            for f in os.listdir(self.localDir)
-            if os.path.isfile(self.localDir / f)
-        ]
-        self.logger.debug(f'Local files: {len(self.locList)}')
+
+        self.local_files = []
+        self.local_folders = []
+
+        for f in os.listdir(self.localDir):
+            entry = SyncFile(self.localDir / Path(unicodedata.normalize('NFC', f)))
+            if entry.type == FileType.FILE:
+                self.local_files.append(entry)
+            else:
+                self.local_folders.append(entry)
+
+        self.logger.debug(f'Local files: {len(self.local_files)}')
         return True
 
     # filtration
     def listFilterItems(self):
         if self.directionToDb:
-            self.filterItems = self.locList
+            self.filterItems = self.local_files
         else:
-            self.filterItems = self.dbList
+            self.filterItems = self.db_files
 
-    def filterSourceFiles(self, filters):
+    def __filter_files(self, filters):
         source_count = len(self.filterItems)
         self.logger.debug(f'Source files: {source_count}')
         self.sourceFilesMatched = [f for f in self.filterItems if not f.filter(filters)]
         self.logger.info(f'--- Filter source files: {source_count} -> {len(self.sourceFilesMatched)}')
 
+    def apply_filter(self, filters: FilterParameters):
+        self.filters = filters
+
     # synchronize
     def synchronize(self):
-        # for debug
-        #self.fixLocalTimestamps()
 
+        old_db_root = self.dropboxDir
+        old_local_root = self.localDir
+
+        if self.directionToDb:
+            stack = [self.localDir]
+            relative_to = old_local_root
+        else:
+            stack = [self.dropboxDir]
+            relative_to = old_db_root
+
+        while len(stack) > 0:
+
+            entry = stack.pop()
+            entry = Path(entry.relative_to(relative_to))
+
+            self.dropboxDir = self.dropboxDir / entry
+            self.localDir = self.localDir / entry
+
+            self.checkLocalDir()
+            self.checkDropboxDir()
+            self.listDropboxFiles()
+            self.listLocalFiles()
+            self.listFilterItems()
+            self.__filter_files(self.filters)
+
+            if self.directionToDb:
+                stack.extend([Path(self.localDir/f.name) for f in self.local_folders])
+            else:
+                stack.extend([Path(self.dropboxDir/f.name) for f in self.db_folders])
+
+            self.__do_sync()
+
+            self.dropboxDir = old_db_root
+            self.localDir = old_local_root
+
+    def __do_sync(self):
         if self.directionToDb:
             self.deleteDropboxFiles()
             self.syncToDropbox()
@@ -120,18 +165,16 @@ class DropboxSync(object):
             self.deleteLocalFiles()
             self.syncToLocal()
 
-        return True
-
     def deleteLocalFiles(self):
         # remove local
         sourceNames = [fileItem.name for fileItem in self.sourceFilesMatched]
-        delList = [fileItem for fileItem in self.locList if fileItem.name not in sourceNames]
+        delList = [fileItem for fileItem in self.local_files if fileItem.name not in sourceNames]
         if not delList:
             return
         self.logger.debug(f'Local files to delete: {len(delList)}')
         for fileItem in delList:
             fileItem.delete()
-        self.logger.info(f'--- Deleted {len(delList)}/{len(self.locList)} local files')
+        self.logger.info(f'--- Deleted {len(delList)}/{len(self.local_files)} local files')
 
     def syncToLocal(self):
         countSuccess = 0
@@ -139,9 +182,9 @@ class DropboxSync(object):
         countFails = 0
         for fileItem in self.sourceFilesMatched:
 
-            self.db_handler.file = self.dropboxDir / fileItem.name
+            # self.db_handler.file = self.dropboxDir / fileItem.name
 
-            if fileItem in self.locList:
+            if fileItem in self.local_files:
                 self.logger.debug(f'Skip existed: {fileItem.name}')
                 countSkip += 1
                 continue
@@ -157,21 +200,21 @@ class DropboxSync(object):
     def deleteDropboxFiles(self):
         """ Delete not matched files from Dropbox directory """
         sourceNames = [fileItem.name for fileItem in self.sourceFilesMatched]
-        delList = [fileItem for fileItem in self.dbList if fileItem.name not in sourceNames]
+        delList = [fileItem for fileItem in self.db_files if fileItem.name not in sourceNames]
         if not delList:
             return
         self.logger.debug('Dropbox files to delete:%s' % len(delList))
         for fileItem in delList:
             self.deleteFile(fileItem)
-        self.logger.info('--- Success delete %d/%d dropbox files' % (len(delList), len(self.dbList)))
+        self.logger.info('--- Success delete %d/%d dropbox files' % (len(delList), len(self.db_files)))
 
     def syncToDropbox(self):
         countSuccess = 0
         countSkip = 0
         countFails = 0
         for fileItem in self.sourceFilesMatched:
-            if fileItem in self.dbList:
-                self.logger.debug('Skip existed:%s' % fileItem)
+            if fileItem in self.db_files:
+                self.logger.debug(f'Skip existed: {str(fileItem.name)}')
                 countSkip += 1
                 continue
             if self.uploadFile(fileItem):
@@ -189,16 +232,23 @@ class DropboxSync(object):
         Return an array of filter items
         """
         self.logger.debug('Downloading dropbox list files...')
+        self.db_files = []
+        self.db_folders = []
 
         try:
             with self.stopwatch(__name__):
                 res = self.dbx.files_list_folder(str(self.dropboxDir))
         except ApiError as err:
-            self.dbList = []
+            self.db_files = []
             raise Exception('Folder listing failed for %s -- assumed empty:%s' % (str(self.dropboxDir), err))
         else:
-            self.logger.debug('Dropbox files:%s' % len(res.entries))
-            self.dbList = [SyncFile(self.dropboxDir / dbfile.name, file_handler=self.db_handler) for dbfile in res.entries]
+            for f in res.entries:
+                entry = SyncFile(self.dropboxDir / f.name, file_handler=DropboxFileHandler(self.dbx))
+                if entry.type == FileType.FILE:
+                    self.db_files.append(entry)
+                else:
+                    self.db_folders.append(entry)
+            self.logger.debug(f'Dropbox files: {len(self.db_files)}')
 
     def downloadFile(self, file_item: SyncFile):
         """Download a file.
@@ -207,7 +257,7 @@ class DropboxSync(object):
 
         db_path = self.dropboxDir / file_item.name
         local_path = self.localDir / file_item.name
-        file_size = SyncFile(db_path, file_handler=self.db_handler).size
+        file_size = SyncFile(db_path, file_handler=DropboxFileHandler(self.dbx)).size
 
         self.logger.debug(f'Downloading {file_item.name} ({file_size} bytes) ...')
         with self.stopwatch('downloading'):
@@ -233,8 +283,8 @@ class DropboxSync(object):
         with self.stopwatch('uploading'):
             try:
                 self.dbx.files_upload(
-                    data, db_path, mode,
-                    client_modified=file_item.mod_time,
+                    data, str(db_path), mode,
+                    client_modified=datetime.datetime.utcfromtimestamp(file_item.mod_time),
                     autorename=False,
                     mute=True)
             except dropbox.exceptions.ApiError as err:

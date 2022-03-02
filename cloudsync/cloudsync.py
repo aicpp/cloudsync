@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import os
+from pathlib import Path
 import sys
 
 import dropboxsync
@@ -59,16 +60,18 @@ def main():
         sys.exit(2)
 
     try:
-        # 
-        dbSync = dropboxsync.DropboxSync(vars(args))
+
+        dbSync = dropboxsync.DropboxSync(**vars(args))
         dbSync.setLogger(logger)
         dbSync.prepare()
 
         filters = FilterParameters()
         filters.days = dbSync.args['match_days']
-        dbSync.filterSourceFiles(filters)
+        dbSync.apply_filter(filters)
 
         dbSync.synchronize()
+
+
     except:
         logger.exception('')
 

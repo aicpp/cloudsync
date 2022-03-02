@@ -32,6 +32,10 @@ class SyncFile:
     def size(self):
         return self.file_handler.size()
 
+    @property
+    def type(self):
+        return self.file_handler.type()
+
     def filter(self, params: FilterParameters) -> bool:
         return self.file_handler.filter(params)
 
@@ -42,7 +46,7 @@ class SyncFile:
         return str(self)
 
     def __str__(self):
-        return str(self.name)
+        return f"{str(self.name)}\n{str(self.mod_time)}\n{str(self.hash)}"
 
     def __eq__(self, other: 'SyncFile'):
         if other.name != self.name:
@@ -51,7 +55,7 @@ class SyncFile:
         if other.size != self.size:
             return False
 
-        if self.mod_time < other.mod_time:
+        if self.mod_time != other.mod_time:
             return self.hash == other.hash
 
         return False
