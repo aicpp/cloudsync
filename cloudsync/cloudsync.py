@@ -67,7 +67,7 @@ def main():
 
         filters = FilterParameters()
         filters.days = dbSync.args['match_days']
-        dbSync.filterSourceFiles(filters)
+        dbSync.apply_filter(filters)
 
         dbSync.synchronize()
 

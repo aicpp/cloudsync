@@ -28,8 +28,8 @@ class DropboxFileHandler(FileHandler):
         server_modify = time.mktime(metadata.server_modified.timetuple())
 
         if client_modify > server_modify:
-            return client_modify
-        return server_modify
+            return int(client_modify)
+        return int(server_modify)
 
     def create(self):
         pass
